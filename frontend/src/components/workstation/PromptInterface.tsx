@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Loader2, FlaskConical, Microscope, Dna, Brain } from "lucide-react";
+import { Sparkles, Loader2, FlaskConical, Microscope, Dna, Brain, Cloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -8,9 +8,10 @@ import { useWorkstation } from "@/context/workstation-context";
 import { fetchNoveltyCheck, type NoveltyCheckResult } from "@/lib/novelty";
 
 const examples = [
-  { icon: Dna, label: "Microbiome", text: "A 14-day high-fibre dietary intervention increases faecal butyrate and Akkermansia muciniphila relative abundance versus a matched control diet." },
-  { icon: FlaskConical, label: "Metabolomics", text: "Time-restricted feeding (16:8) shifts the secondary bile-acid pool toward DCA-dominant profiles in healthy adults." },
-  { icon: Microscope, label: "Mucosal biology", text: "Daily 500 mg cranberry polyphenol extract enhances colonic mucin-2 expression in a 6-week intervention." },
+  { icon: Dna, label: "Diagnostics", text: "A paper-based electrochemical biosensor functionalized with anti-CRP antibodies will detect C-reactive protein in whole blood at concentrations below 0.5 mg/L within 10 minutes, matching laboratory ELISA sensitivity without requiring sample preprocessing." },
+  { icon: FlaskConical, label: "Gut Health", text: "Supplementing C57BL/6 mice with Lactobacillus rhamnosus GG for 4 weeks will reduce intestinal permeability by at least 30% compared to controls, measured by FITC-dextran assay, due to upregulation of tight junction proteins claudin-1 and occludin." },
+  { icon: Microscope, label: "Cell Biology", text: "Replacing sucrose with trehalose as a cryoprotectant in the freezing medium will increase post-thaw viability of HeLa cells by at least 15 percentage points compared to the standard DMSO protocol, due to trehalose's superior membrane stabilization at low temperatures." },
+  { icon: Cloud, label: "Climate", text: "Introducing Sporomusa ovata into a bioelectrochemical system at a cathode potential of −400mV vs SHE will fix CO₂ into acetate at a rate of at least 150 mmol/L/day, outperforming current biocatalytic carbon capture benchmarks by at least 20%."}
 ];
 
 export function PromptInterface() {
@@ -49,7 +50,7 @@ export function PromptInterface() {
             <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
             AGENT READY
           </Badge>
-          <span className="font-mono-data text-[10px] text-muted-foreground">model: operus-plan-2.4 · grounding: pubmed+biorxiv</span>
+          <span className="font-mono-data text-[10px] text-muted-foreground">model: gpt-5.1 · grounding: pubmed+biorxiv</span>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">Plan an experiment</h1>
         <p className="text-sm text-muted-foreground">

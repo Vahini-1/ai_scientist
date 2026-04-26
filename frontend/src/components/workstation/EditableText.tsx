@@ -72,17 +72,16 @@ export function EditableText({ value, onSave, source, field, className, textClas
     return (
       <div className={cn("group relative", className)}>
         <p className={cn("text-sm leading-relaxed text-foreground", textClassName)}>{value}</p>
-        <button
-          onClick={start}
-          className={cn(
-            "absolute -right-1 -top-1 h-6 w-6 items-center justify-center rounded border border-border bg-background text-muted-foreground hover:border-primary hover:text-primary",
-            reviewMode ? "inline-flex" : "hidden group-hover:inline-flex"
-          )}
-          aria-label="Edit / Review"
-          title="Review mode"
-        >
-          <Pencil className="h-3 w-3" />
-        </button>
+        {reviewMode ? (
+          <button
+            onClick={start}
+            className="absolute -right-1 -top-1 inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-background text-muted-foreground hover:border-primary hover:text-primary"
+            aria-label="Edit / Review"
+            title="Review mode"
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+        ) : null}
       </div>
     );
   }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,12 +12,28 @@ import { budgetLines, citations, ganttDefinition, materials, protocolSteps, vali
 import { CitationRef } from "./CitationRef";
 import { EditableText } from "./EditableText";
 import { MermaidChart } from "./MermaidChart";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { cn } from "@/lib/utils";
 import type { BackendPlan } from "@/lib/backend-plan";
 
 export function ReportView() {
-  const { reports, activeReportId, steps, updateStep, validationText, setValidationText, reviewMode, setReviewMode, memory, planByReportId, noveltyByReportId, lastPlanError } = useWorkstation();
+  const {
+    reports,
+    activeReportId,
+    steps,
+    updateStep,
+    validationText,
+    setValidationText,
+    setReviewMode,
+    reviewModeByTab,
+    setTabReviewMode,
+    memory,
+    planByReportId,
+    noveltyByReportId,
+    lastPlanError,
+    parametersByReportId,
+    updateReportParameters,
+  } = useWorkstation();
   const report = reports.find(r => r.id === activeReportId) ?? reports[0];
   const plan: BackendPlan | undefined = (report?.id ? planByReportId[report.id] : undefined);
   const novelty = report?.id ? noveltyByReportId[report.id] : undefined;
@@ -25,11 +41,11 @@ export function ReportView() {
   const timelineWeeks = plan?.timeline?.weeks?.length || 10;
 
   const budgetLinesLive = plan?.budget?.length
-    ? plan.budget.map(b => ({ category: b.category as any, description: b.description, amount: b.amount }))
+    ? plan.budget.map(b => ({ category: b.category, description: b.description, amount: b.amount }))
     : budgetLines;
 
   const materialsLive = plan?.materials?.length
-    ? plan.materials.map(m => ({ item: m.item, qty: "1", vendor: m.vendor, catalog: m.catalogNum, lead: "—", refs: [], cost: m.price }))
+    ? plan.materials.map(m => ({ item: m.item, qty: "1", vendor: m.vendor, catalog: m.catalogNum, refs: [], cost: m.price, sourceUrl: m.sourceUrl, sourceQuality: m.sourceQuality }))
     : materials;
 
   const citationsLive = plan?.literature?.length
@@ -48,7 +64,7 @@ export function ReportView() {
     : plan?.protocol?.length
       ? plan.protocol.map((p, idx) => ({
         id: `P${p.step || idx + 1}`,
-        phase: `Phase ${idx + 1}`,
+        phase: p.phase || `Phase ${idx + 1}`,
         title: p.instruction.split(".")[0] || `Step ${idx + 1}`,
         duration: p.duration || `Week ${idx + 1}`,
         description: p.instruction,
@@ -58,7 +74,7 @@ export function ReportView() {
 
   const memoryLive = memory.length
     ? memory
-    : (plan?.memory ?? []).map((m: any, i: number) => ({
+    : (plan?.memory ?? []).map((m: Record<string, unknown>, i: number) => ({
       id: `M-${String(i + 1).padStart(3, "0")}`,
       timestamp: new Date().toISOString().slice(0, 16).replace("T", " "),
       source: String(m?.source ?? m?.id ?? "Plan memory"),
@@ -69,12 +85,66 @@ export function ReportView() {
     }));
 
   const totalBudget = budgetLinesLive.length ? budgetLinesLive.reduce((s, l) => s + l.amount, 0) : (plan?.summary?.totalBudget ?? 0);
-  const [activeTab, setActiveTab] = useState("summary");
   const budgetByCategory = useMemo(() => {
     const map = new Map<string, number>();
-    for (const l of budgetLinesLive) map.set(l.category, (map.get(l.category) ?? 0) + l.amount);
-    return Array.from(map, ([name, value]) => ({ name, value }));
+    for (const line of budgetLinesLive) {
+      const key = String(line.category ?? "Other") || "Other";
+      map.set(key, (map.get(key) ?? 0) + (Number.isFinite(line.amount) ? Number(line.amount) : 0));
+    }
+    return Array.from(map.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
   }, [budgetLinesLive]);
+  const [activeTab, setActiveTab] = useState("summary");
+  useEffect(() => {
+    const key = activeTab as keyof typeof reviewModeByTab;
+    if (key in reviewModeByTab) setReviewMode(Boolean(reviewModeByTab[key]));
+  }, [activeTab, reviewModeByTab, setReviewMode]);
+  const reportParams = report?.id ? parametersByReportId[report.id] : undefined;
+  const vendorOptions = useMemo(() => {
+    const fromMaterials = Array.from(new Set(materialsLive.map(m => m.vendor).filter(Boolean)));
+    const fromSummary = plan?.summary?.selectedVendors ?? [];
+    return Array.from(new Set([...fromMaterials, ...fromSummary]));
+  }, [materialsLive, plan?.summary?.selectedVendors]);
+  const selectedVendor = reportParams?.selectedVendor ?? vendorOptions[0] ?? "Best available";
+  const selectedSampleSize = reportParams?.sampleSize ?? plan?.parameters?.sampleSize ?? 48;
+  const selectedAutomation = reportParams?.automationLevel ?? plan?.parameters?.automationLevel ?? "medium";
+  const baseSampleSize = plan?.parameters?.sampleSize ?? 48;
+  const baseTimeline = plan?.summary?.timelineWeeks ?? timelineWeeks;
+  const baseCost = plan?.summary?.totalBudget ?? totalBudget;
+  const vendorItems = materialsLive.filter(m => m.vendor === selectedVendor);
+  const selectedVendorAvg = vendorItems.length ? vendorItems.reduce((s, m) => s + m.cost, 0) / vendorItems.length : 0;
+  const vendorProjectedBase = selectedVendorAvg > 0 ? selectedVendorAvg * materialsLive.length : baseCost;
+  const vendorMultiplier = selectedVendorAvg > 0 ? vendorProjectedBase / Math.max(1, baseCost) : (plan?.summary?.selectedVendors?.includes(selectedVendor) ? 1 : 1.08);
+  const automationCostMultiplier = selectedAutomation === "high" ? 1.22 : selectedAutomation === "low" ? 0.92 : 1;
+  const automationTimeMultiplier = selectedAutomation === "high" ? 0.82 : selectedAutomation === "low" ? 1.18 : 1;
+  const sizeMultiplier = Math.max(0.5, selectedSampleSize / Math.max(1, baseSampleSize));
+  const projectedCost = Math.round(baseCost * Math.max(0.6, vendorMultiplier) * automationCostMultiplier * sizeMultiplier);
+  const sampleSizeMin = plan?.parameters?.sampleSizeMin ?? Math.max(8, Math.round((plan?.parameters?.sampleSize ?? 48) * 0.5));
+  const sampleSizeMax = plan?.parameters?.sampleSizeMax ?? Math.max(sampleSizeMin + 8, Math.round((plan?.parameters?.sampleSize ?? 48) * 2));
+  const projectedTimelineWeeks = Number((baseTimeline * automationTimeMultiplier * (0.85 + sizeMultiplier * 0.15)).toFixed(1));
+  const projectedReproducibility = Math.max(
+    50,
+    Math.min(100, Math.round((selectedAutomation === "high" ? 90 : selectedAutomation === "low" ? 65 : 78) - Math.max(0, sizeMultiplier - 1) * 4))
+  );
+  const executiveSummary = plan?.summary?.executiveSummary || [
+    `Novelty: ${novelty?.noveltyStatus ?? plan?.summary?.noveltyStatus ?? "not found"}.`,
+    `Budget: $${totalBudget.toLocaleString()}.`,
+    `Vendors: ${(plan?.summary?.selectedVendors ?? vendorOptions).slice(0, 3).join(", ") || "to be finalized"}.`,
+    `Timeline: ${baseTimeline} weeks.`,
+  ].join(" ");
+  const materialsSubtotal = useMemo(() => materialsLive.reduce((s, m) => s + (m.cost ?? 0), 0), [materialsLive]);
+  const nonMaterialsSubtotal = useMemo(() => Math.max(0, totalBudget - materialsSubtotal), [totalBudget, materialsSubtotal]);
+
+  if (!report) {
+    return (
+      <div className="p-6">
+        <Card className="p-6 text-sm text-muted-foreground">
+          Report data is unavailable. Open a report from the library or generate a new one.
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div id="report-export-root" className="flex h-full flex-col">
@@ -82,22 +152,23 @@ export function ReportView() {
       <div className="border-b border-border bg-muted/30 px-6 py-3">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
           <div className="flex items-center gap-1.5">
-            <Badge variant="outline" className="font-mono-data text-[10px]">{report.id}</Badge>
+            <Badge variant="outline" className="font-mono-data text-[10px]">{report?.id ?? "N/A"}</Badge>
             <Badge className="bg-success/15 text-success hover:bg-success/20 border border-success/30">
               <CheckCircle2 className="mr-1 h-3 w-3" /> Active
             </Badge>
           </div>
-          <div className="text-muted-foreground"><span className="font-medium text-foreground">Hypothesis:</span> {report.hypothesis}</div>
+          <div className="text-muted-foreground"><span className="font-medium text-foreground">Hypothesis:</span> {report?.hypothesis ?? "No report selected"}</div>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-1 flex-col overflow-hidden">
         <div className="border-b border-border bg-background px-4">
-          <TabsList className="h-11 w-full justify-start gap-1 bg-transparent p-0">
+          <TabsList className="h-11 flex-1 justify-start gap-1 bg-transparent p-0">
             <TabTriggerItem value="summary" icon={<TrendingUp className="h-3.5 w-3.5" />} label="Summary" />
             <TabTriggerItem value="protocol" icon={<FlaskConical className="h-3.5 w-3.5" />} label="Protocol & Validation" />
             <TabTriggerItem value="materials" icon={<GitBranch className="h-3.5 w-3.5" />} label="Materials & Supply Chain" />
             <TabTriggerItem value="budget" icon={<DollarSign className="h-3.5 w-3.5" />} label="Budget & Finance" />
+            <TabTriggerItem value="parameters" icon={<FileText className="h-3.5 w-3.5" />} label="Parameters" />
             <TabTriggerItem value="timeline" icon={<Calendar className="h-3.5 w-3.5" />} label="Detailed Timeline" />
             <TabTriggerItem value="literature" icon={<BookOpen className="h-3.5 w-3.5" />} label="Literature" />
             <TabTriggerItem value="memory" icon={<Brain className="h-3.5 w-3.5" />} label="Expert Memory" />
@@ -145,6 +216,16 @@ export function ReportView() {
           {/* SUMMARY */}
           <TabsContent value="summary" className={cn("m-0 p-6", !plan && !lastPlanError && "hidden")}>
             <div className="grid gap-4 lg:grid-cols-3">
+              <Card className="p-4 lg:col-span-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="font-mono-data text-[10px] uppercase tracking-wider text-muted-foreground">Executive summary</div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px]">Novelty · Budget · Vendors · Timeline</Badge>
+                    <ReadReviewToggle checked={reviewModeByTab.summary} onCheckedChange={v => setTabReviewMode("summary", v)} />
+                  </div>
+                </div>
+                <p className="text-sm leading-relaxed">{executiveSummary}</p>
+              </Card>
               {/* Novelty */}
               <Card className="p-4 lg:col-span-1">
                 <div className="mb-3 flex items-center justify-between">
@@ -191,52 +272,40 @@ export function ReportView() {
                 <div className="flex items-baseline gap-2">
                   <div className="font-mono-data text-3xl font-semibold">${totalBudget.toLocaleString()}</div>
                   {budgetCap ? (
-                    <div className="text-xs text-success">{Math.round((1 - totalBudget / budgetCap) * 100)}% under cap</div>
+                    <div className={cn("text-xs", totalBudget <= budgetCap ? "text-success" : "text-warning")}>
+                      {totalBudget <= budgetCap
+                        ? `${Math.round((1 - totalBudget / budgetCap) * 100)}% under cap`
+                        : `${Math.round((totalBudget / budgetCap - 1) * 100)}% over cap`}
+                    </div>
                   ) : null}
                 </div>
                 {budgetCap ? (
                   <Progress value={(totalBudget / budgetCap) * 100} className="mt-2 h-1.5" />
                 ) : null}
 
-                <div className="mt-3 flex items-center gap-3">
-                  <div className="h-32 w-32 shrink-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={budgetByCategory}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={32}
-                          outerRadius={56}
-                          paddingAngle={2}
-                          stroke="hsl(var(--background))"
-                          strokeWidth={2}
-                        >
-                          {budgetByCategory.map((_, i) => (
-                            <Cell key={i} fill={`hsl(var(--chart-${(i % 5) + 1}))`} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          contentStyle={{ background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", border: "1px solid hsl(var(--border))", borderRadius: 6, fontSize: 11 }}
-                          formatter={(v: number) => `$${v.toLocaleString()}`}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
+                <div className="mt-4 grid gap-2 text-xs">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Materials subtotal</span>
+                    <span className="font-mono-data font-medium">${materialsSubtotal.toLocaleString()}</span>
                   </div>
-                  <div className="grid flex-1 gap-1 text-[11px]">
-                    {budgetByCategory.map((c, i) => (
-                      <div key={c.name} className="flex items-center justify-between gap-2">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <span
-                            className="h-2 w-2 shrink-0 rounded-sm"
-                            style={{ background: `hsl(var(--chart-${(i % 5) + 1}))` }}
-                          />
-                          <span className="truncate break-all text-muted-foreground">{c.name}</span>
-                        </div>
-                        <span className="font-mono-data font-medium">${c.value.toLocaleString()}</span>
-                      </div>
-                    ))}
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Non-materials subtotal</span>
+                    <span className="font-mono-data font-medium">${nonMaterialsSubtotal.toLocaleString()}</span>
                   </div>
+                  {budgetCap ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground">Cap</span>
+                      <span className="font-mono-data font-medium">${budgetCap.toLocaleString()}</span>
+                    </div>
+                  ) : null}
+                  {budgetCap ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-muted-foreground">{totalBudget <= budgetCap ? "Headroom" : "Over cap"}</span>
+                      <span className={cn("font-mono-data font-medium", totalBudget <= budgetCap ? "text-success" : "text-warning")}>
+                        ${Math.abs(budgetCap - totalBudget).toLocaleString()}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               </Card>
 
@@ -285,14 +354,11 @@ export function ReportView() {
                 <h2 className="text-base font-semibold">Operational protocol</h2>
                 <p className="text-xs text-muted-foreground">Click the pencil on any step to edit. You can apply locally or submit to Expert Memory.</p>
               </div>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-muted-foreground">Review mode</span>
-                <Switch checked={reviewMode} onCheckedChange={setReviewMode} />
-              </div>
+              <ReadReviewToggle checked={reviewModeByTab.protocol} onCheckedChange={v => setTabReviewMode("protocol", v)} />
             </div>
 
-            <Card className="overflow-hidden">
-              <table className="w-full border-collapse text-sm">
+              <Card className="overflow-x-auto">
+              <table className="w-full min-w-[820px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/40 text-left font-mono-data text-[10px] uppercase tracking-wider text-muted-foreground">
                     <th className="w-16 px-3 py-2">Step</th>
@@ -342,9 +408,12 @@ export function ReportView() {
                 <h2 className="text-base font-semibold">Materials & supply chain</h2>
                 <p className="text-xs text-muted-foreground">Live supplier table generated for this plan.</p>
               </div>
-              <Badge variant="outline" className="font-mono-data text-[10px]">
-                <AlertCircle className="mr-1 h-3 w-3 text-warning" /> {materialsLive.length} items
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="font-mono-data text-[10px]">
+                  <AlertCircle className="mr-1 h-3 w-3 text-warning" /> {materialsLive.length} items
+                </Badge>
+                <ReadReviewToggle checked={reviewModeByTab.materials} onCheckedChange={v => setTabReviewMode("materials", v)} />
+              </div>
             </div>
 
             <Card className="overflow-hidden">
@@ -355,7 +424,7 @@ export function ReportView() {
                     <th className="w-28 px-3 py-2">Quantity</th>
                     <th className="w-36 px-3 py-2">Preferred vendor</th>
                     <th className="w-32 px-3 py-2">Catalog #</th>
-                    <th className="w-24 px-3 py-2">Lead time</th>
+                    <th className="w-40 px-3 py-2">Source</th>
                     <th className="w-20 px-3 py-2 text-right">Cost</th>
                   </tr>
                 </thead>
@@ -368,7 +437,21 @@ export function ReportView() {
                       <td className="px-3 py-2.5">
                         <span className="font-mono-data text-xs rounded border border-border bg-muted/40 px-1.5 py-0.5">#{m.catalog}</span>
                       </td>
-                      <td className={cn("px-3 py-2.5 font-mono-data text-xs", parseInt(m.lead || "0") > 7 && "text-warning font-medium")}>{m.lead}</td>
+                      <td className="px-3 py-2.5 font-mono-data text-xs">
+                        <div className="flex items-center gap-2">
+                          {m.sourceUrl ? <a href={m.sourceUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">open</a> : "n/a"}
+                          {m.sourceQuality ? (
+                            <span className={cn(
+                              "rounded border px-1.5 py-0.5 text-[10px]",
+                              m.sourceQuality === "exact" ? "border-success/40 text-success" :
+                                m.sourceQuality === "partial" ? "border-warning/40 text-warning" :
+                                  "border-border text-muted-foreground"
+                            )}>
+                              {m.sourceQuality}
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
                       <td className="px-3 py-2.5 text-right font-mono-data text-xs">${m.cost.toLocaleString()}</td>
                     </tr>
                   ))}
@@ -385,7 +468,7 @@ export function ReportView() {
           <TabsContent value="budget" className={cn("m-0 p-6", !plan && !lastPlanError && "hidden")}>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-semibold">Budget & finance</h2>
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-2 text-xs flex-wrap justify-end">
                 {budgetCap ? (
                   <>
                     <span className="text-muted-foreground">Cap:</span>
@@ -396,10 +479,17 @@ export function ReportView() {
                 <span className="text-muted-foreground">Total:</span>
                 <span className="font-mono-data font-medium">${totalBudget.toLocaleString()}</span>
                 {budgetCap ? (
-                  <Badge className="bg-success/15 text-success border-success/30">
-                    ${(budgetCap - totalBudget).toLocaleString()} headroom
+                  <Badge className={cn(
+                    totalBudget <= budgetCap
+                      ? "bg-success/15 text-success border-success/30"
+                      : "bg-warning/15 text-warning border-warning/30"
+                  )}>
+                    {totalBudget <= budgetCap
+                      ? `$${(budgetCap - totalBudget).toLocaleString()} headroom`
+                      : `$${(totalBudget - budgetCap).toLocaleString()} over cap`}
                   </Badge>
                 ) : null}
+                <ReadReviewToggle checked={reviewModeByTab.budget} onCheckedChange={v => setTabReviewMode("budget", v)} />
               </div>
             </div>
 
@@ -437,8 +527,8 @@ export function ReportView() {
                 </div>
               </Card>
 
-              <Card className="overflow-hidden lg:col-span-3">
-                <table className="w-full border-collapse text-sm">
+              <Card className="overflow-x-auto lg:col-span-3">
+                <table className="w-full min-w-[760px] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/40 text-left font-mono-data text-[10px] uppercase tracking-wider text-muted-foreground">
                       <th className="w-12 px-3 py-2">#</th>
@@ -454,7 +544,7 @@ export function ReportView() {
                         <td className="px-3 py-2">
                           <span className="rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium">{l.category}</span>
                         </td>
-                        <td className="px-3 py-2 text-sm break-words max-w-[280px]">{l.description}</td>
+                        <td className="max-w-[320px] px-3 py-2 text-sm break-words">{l.description}</td>
                         <td className="px-3 py-2 text-right font-mono-data text-sm">${l.amount.toLocaleString()}</td>
                       </tr>
                     ))}
@@ -469,13 +559,85 @@ export function ReportView() {
           </TabsContent>
 
           {/* TIMELINE */}
+          <TabsContent value="parameters" className={cn("m-0 p-6", !plan && !lastPlanError && "hidden")}>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+              <h2 className="text-base font-semibold">Experiment parameters</h2>
+              <p className="text-xs text-muted-foreground">Select vendor strategy, sample size, and automation level to project cost/timeline/reproducibility impact.</p>
+              </div>
+              <ReadReviewToggle checked={reviewModeByTab.parameters} onCheckedChange={v => setTabReviewMode("parameters", v)} />
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card className="p-4">
+                <div className="mb-2 font-mono-data text-[10px] uppercase tracking-wider text-muted-foreground">Selected vendor</div>
+                <div className="flex flex-wrap gap-2">
+                  {(vendorOptions.length ? vendorOptions : ["Best available"]).map(vendor => (
+                    <Button
+                      key={vendor}
+                      size="sm"
+                      variant={selectedVendor === vendor ? "default" : "outline"}
+                      onClick={() => report?.id && updateReportParameters(report.id, { selectedVendor: vendor })}
+                    >
+                      {vendor}
+                    </Button>
+                  ))}
+                </div>
+                <Separator className="my-4" />
+                <div className="mb-2 font-mono-data text-[10px] uppercase tracking-wider text-muted-foreground">Sample size: {selectedSampleSize}</div>
+                <input
+                  type="range"
+                  min={sampleSizeMin}
+                  max={sampleSizeMax}
+                  step={1}
+                  value={selectedSampleSize}
+                  onChange={e => report?.id && updateReportParameters(report.id, { sampleSize: Number(e.target.value) })}
+                  className="w-full"
+                />
+                <Separator className="my-4" />
+                <div className="mb-2 font-mono-data text-[10px] uppercase tracking-wider text-muted-foreground">Automation level</div>
+                <div className="flex gap-2">
+                  {(["low", "medium", "high"] as const).map(level => (
+                    <Button
+                      key={level}
+                      size="sm"
+                      variant={selectedAutomation === level ? "default" : "outline"}
+                      onClick={() => report?.id && updateReportParameters(report.id, { automationLevel: level })}
+                    >
+                      {level}
+                    </Button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  low: manual workflow, lower cost but more variability · medium: semi-automated balance · high: robotic/high-throughput, higher cost and better reproducibility
+                </p>
+              </Card>
+              <Card className="p-4">
+                <div className="mb-3 font-mono-data text-[10px] uppercase tracking-wider text-muted-foreground">Projected impact</div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <ImpactStat label="Estimated cost" value={`$${projectedCost.toLocaleString()}`} />
+                  <ImpactStat label="Timeline" value={`${projectedTimelineWeeks} weeks`} />
+                  <ImpactStat label="Sample size" value={`${selectedSampleSize}`} />
+                  <ImpactStat label="Reproducibility" value={`${projectedReproducibility}/100`} />
+                </div>
+                <Separator className="my-4" />
+                <p className="text-xs text-muted-foreground">
+                  Baseline values come from the unified generated report and are deterministically adjusted from your parameter choices.
+                </p>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* TIMELINE */}
           <TabsContent value="timeline" className={cn("m-0 p-6", !plan && !lastPlanError && "hidden")}>
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-base font-semibold">Detailed timeline</h2>
                 <p className="text-xs text-muted-foreground">{timelineWeeks}-week plan generated from backend timeline tasks.</p>
               </div>
-              <Badge variant="outline" className="font-mono-data text-[10px]">mermaid · gantt v10.9</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="font-mono-data text-[10px]">mermaid · gantt v10.9</Badge>
+                <ReadReviewToggle checked={reviewModeByTab.timeline} onCheckedChange={v => setTabReviewMode("timeline", v)} />
+              </div>
             </div>
             <Card className="overflow-hidden p-4">
               <div className="overflow-x-auto">
@@ -501,8 +663,13 @@ export function ReportView() {
           {/* LITERATURE */}
           <TabsContent value="literature" className={cn("m-0 p-6", !plan && !lastPlanError && "hidden")}>
             <div className="mb-4">
-              <h2 className="text-base font-semibold">Literature</h2>
-              <p className="text-xs text-muted-foreground">Citations indexed by [n] markers throughout the protocol and materials tabs.</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-semibold">Literature</h2>
+                  <p className="text-xs text-muted-foreground">Citations indexed by [n] markers throughout the protocol and materials tabs.</p>
+                </div>
+                <ReadReviewToggle checked={reviewModeByTab.literature} onCheckedChange={v => setTabReviewMode("literature", v)} />
+              </div>
             </div>
             <div className="grid gap-3">
               {citationsLive.map(c => (
@@ -538,7 +705,10 @@ export function ReportView() {
                 <h2 className="text-base font-semibold">Expert Memory log</h2>
                 <p className="text-xs text-muted-foreground">Memory reflects your saved edits and backend-provided corrections for this plan.</p>
               </div>
-              <Badge variant="outline" className="font-mono-data text-[10px]">{memoryLive.length} entries</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="font-mono-data text-[10px]">{memoryLive.length} entries</Badge>
+                <ReadReviewToggle checked={reviewModeByTab.memory} onCheckedChange={v => setTabReviewMode("memory", v)} />
+              </div>
             </div>
             <Card className="overflow-hidden">
               <table className="w-full border-collapse text-sm">
@@ -604,6 +774,25 @@ function Pill({ children }: { children: React.ReactNode }) {
   return <span className="rounded-full border border-border bg-muted/50 px-2 py-0.5 font-mono-data text-[10px] text-muted-foreground">{children}</span>;
 }
 
+function ImpactStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded border border-border bg-muted/20 p-3">
+      <div className="font-mono-data text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-1 text-base font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function ReadReviewToggle({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center gap-2 rounded border border-border bg-muted/20 px-2 py-1 text-[10px]">
+      <span className={cn(!checked ? "text-foreground" : "text-muted-foreground")}>Read</span>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+      <span className={cn(checked ? "text-foreground" : "text-muted-foreground")}>Review</span>
+    </div>
+  );
+}
+
 function TimelineBar({ weeks }: { weeks?: Array<{ week: number; tasks: string[] }> }) {
   const phases = (weeks?.length
     ? weeks.map((w, i) => ({ name: `W${w.week}`, weeks: 1, color: `hsl(var(--chart-${(i % 5) + 1}))` }))
@@ -626,7 +815,7 @@ function TimelineBar({ weeks }: { weeks?: Array<{ week: number; tasks: string[] 
             style={{ width: `${(p.weeks / total) * 100}%`, backgroundColor: p.color }}
             title={`${p.name} · ${p.weeks}w`}
           >
-            <span className="font-mono-data">{p.weeks}w</span>
+            <span className="font-mono-data">{p.name}</span>
           </div>
         ))}
       </div>

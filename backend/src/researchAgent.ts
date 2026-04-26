@@ -52,9 +52,9 @@ export class ResearchAgent {
   static async getMarketData(query: string) {
     return await tvly.search(`${query} supplier catalog number and price 2026`, {
       searchDepth: "advanced",
-      maxResults: 8,
+      maxResults: 12,
       includeAnswer: true,
-      includeRawContent: false,
+      includeRawContent: "text",
     });
   }
 }

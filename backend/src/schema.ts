@@ -54,10 +54,14 @@ export const PlanSchema = z.object({
       })
     ),
     totalBudget: z.number(),
+    selectedVendors: z.array(z.string()).default([]),
+    timelineWeeks: z.number().int().positive().default(1),
+    executiveSummary: z.string().default(""),
   }),
   protocol: z.array(
     z.object({
       step: z.number().int().positive(),
+      phase: z.string().default("Preparation"),
       instruction: z.string(),
       duration: z.string(),
       citations: z.array(z.string()),
@@ -69,6 +73,8 @@ export const PlanSchema = z.object({
       catalogNum: z.string(),
       vendor: z.string(),
       price: z.number(),
+      sourceUrl: z.string().url().optional(),
+      sourceQuality: z.enum(["exact", "partial", "weak"]).optional(),
     })
   ),
   budget: z.array(
@@ -94,6 +100,30 @@ export const PlanSchema = z.object({
     })
   ),
   memory: z.array(z.record(z.unknown())),
+  parameters: z.object({
+    selectedVendors: z.array(z.string()).default([]),
+    sampleSize: z.number().int().positive().default(48),
+    sampleSizeMin: z.number().int().positive().default(24),
+    sampleSizeMax: z.number().int().positive().default(96),
+    automationLevel: z.enum(["low", "medium", "high"]).default("medium"),
+  }).default({
+    selectedVendors: [],
+    sampleSize: 48,
+    sampleSizeMin: 24,
+    sampleSizeMax: 96,
+    automationLevel: "medium",
+  }),
+  impact: z.object({
+    estimatedCost: z.number().nonnegative().default(0),
+    timelineWeeks: z.number().positive().default(1),
+    sampleSize: z.number().int().positive().default(48),
+    reproducibility: z.number().min(0).max(100).default(75),
+  }).default({
+    estimatedCost: 0,
+    timelineWeeks: 1,
+    sampleSize: 48,
+    reproducibility: 75,
+  }),
 });
 
 export type Plan = z.infer<typeof PlanSchema>;

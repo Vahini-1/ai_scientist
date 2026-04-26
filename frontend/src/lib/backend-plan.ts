@@ -9,9 +9,13 @@ export type BackendPlan = {
       year?: number;
     }>;
     totalBudget: number;
+    selectedVendors: string[];
+    timelineWeeks: number;
+    executiveSummary: string;
   };
   protocol: Array<{
     step: number;
+    phase?: string;
     instruction: string;
     duration: string;
     citations: string[];
@@ -21,6 +25,8 @@ export type BackendPlan = {
     catalogNum: string;
     vendor: string;
     price: number;
+    sourceUrl?: string;
+    sourceQuality?: "exact" | "partial" | "weak";
   }>;
   budget: Array<{
     category: string;
@@ -39,6 +45,19 @@ export type BackendPlan = {
     relevance: string;
   }>;
   memory: Array<Record<string, unknown>>;
+  parameters: {
+    selectedVendors: string[];
+    sampleSize: number;
+    sampleSizeMin?: number;
+    sampleSizeMax?: number;
+    automationLevel: "low" | "medium" | "high";
+  };
+  impact: {
+    estimatedCost: number;
+    timelineWeeks: number;
+    sampleSize: number;
+    reproducibility: number;
+  };
 };
 
 export async function fetchGeneratePlan(input: {
@@ -71,5 +90,23 @@ export async function fetchGeneratePlan(input: {
   }
 
   return (await res.json()) as BackendPlan;
+}
+
+export async function fetchReportChat(input: {
+  message: string;
+  hypothesis: string;
+  plan?: BackendPlan;
+  noveltyStatus?: string;
+}): Promise<string> {
+  const res = await fetch("/api/report-chat", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Report chat failed (${res.status})`);
+  }
+  const data = (await res.json()) as { reply?: string };
+  return data.reply?.trim() || "No response generated.";
 }
 

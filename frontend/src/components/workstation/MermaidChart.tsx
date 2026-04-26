@@ -22,8 +22,8 @@ export function MermaidChart({ definition }: { definition: string }) {
         fontSize: 12,
       },
       themeVariables: theme === "dark"
-        ? { primaryColor: "#6366f1", primaryTextColor: "#e5e7eb", lineColor: "#475569" }
-        : { primaryColor: "#4f46e5", primaryTextColor: "#1e293b", lineColor: "#cbd5e1" },
+        ? { primaryColor: "#6366f1", primaryTextColor: "#e5e7eb", lineColor: "#475569", taskBkgColor: "#6366f1", activeTaskBkgColor: "#0ea5e9", doneTaskBkgColor: "#10b981" }
+        : { primaryColor: "#4f46e5", primaryTextColor: "#1e293b", lineColor: "#cbd5e1", taskBkgColor: "#4f46e5", activeTaskBkgColor: "#0ea5e9", doneTaskBkgColor: "#10b981" },
     });
     initialised = true;
 

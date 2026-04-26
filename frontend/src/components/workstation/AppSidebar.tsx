@@ -34,7 +34,7 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <div className="text-sm font-semibold leading-tight">Operus<span className="text-primary">·</span>SOW</div>
+              <div className="text-sm font-semibold leading-tight">AI Scientist<span className="text-primary">·</span>SOW</div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Scientific Workstation</div>
             </div>
           )}
@@ -139,7 +139,7 @@ export function AppSidebar() {
           <SidebarGroup>
             <SidebarGroupLabel>Report chat</SidebarGroupLabel>
             <SidebarGroupContent className="p-2">
-              <div className="h-80 overflow-auto rounded border border-border bg-muted/20 p-3 text-sm">
+              <div className="h-56 overflow-auto rounded border border-border bg-muted/20 p-3 text-sm">
                 {thread.length === 0 ? (
                   <div className="text-muted-foreground">Ask follow-up questions about this report.</div>
                 ) : (
