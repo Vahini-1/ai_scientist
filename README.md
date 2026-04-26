@@ -168,8 +168,3 @@ Backend (`backend/package.json`):
 - `npm run dev --prefix backend`
 - `npm run build --prefix backend`
 - `npm run lint --prefix backend`
-
-## Video scripts (≤60s each)
-
-See [`VIDEO_SCRIPTS.md`](VIDEO_SCRIPTS.md) for:\n- Demo Video Link (max 60 sec): demonstrate the project\n- Tech Video Link (max 60 sec): explain how it was built
-
