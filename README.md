@@ -1,5 +1,6 @@
 # AI Scientist — Scientific Workstation (SOW)
 
+Website link: https://ai-scientist-ym3w.vercel.app/
 Demo link: https://drive.google.com/file/d/1GKoETgcpLRbzsTixxDQ6TExnfK14fYYT/view?usp=sharing
 This repo contains a **Vite + React** frontend and an **Express + TypeScript** backend that generates an operational experiment report (protocol, materials, budget, timeline, novelty) and provides report chat + export.
 
