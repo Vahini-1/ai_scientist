@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Scientific Operational Workstation - Clinical Lab-Bench Design System
+   All colors HSL. Indigo-600 accents on white/slate canvas. */
+
+@layer base {
+  :root {
+    /* Canvas */
+    --background: 0 0% 100%;
+    --foreground: 215 28% 17%;        /* slate-800 */
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 28% 17%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 28% 17%;
+
+    /* Indigo-600 brand */
+    --primary: 239 84% 57%;            /* indigo-600 */
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 234 89% 74%;       /* indigo-400 */
+
+    --secondary: 210 40% 98%;          /* slate-50 */
+    --secondary-foreground: 215 28% 17%;
+
+    --muted: 210 40% 96%;              /* slate-100 */
+    --muted-foreground: 215 16% 47%;   /* slate-500 */
+
+    --accent: 226 100% 97%;            /* indigo-50 */
+    --accent-foreground: 239 84% 57%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;             /* slate-200 */
+    --input: 214 32% 91%;
+    --ring: 239 84% 57%;
+
+    --radius: 0.375rem;
+
+    /* Sidebar */
+    --sidebar-background: 210 40% 98%;
+    --sidebar-foreground: 215 25% 27%;
+    --sidebar-primary: 239 84% 57%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 226 100% 97%;
+    --sidebar-accent-foreground: 239 84% 57%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 239 84% 57%;
+
+    /* Data viz palette */
+    --chart-1: 239 84% 57%;            /* indigo */
+    --chart-2: 199 89% 48%;            /* sky */
+    --chart-3: 142 71% 45%;            /* emerald */
+    --chart-4: 38 92% 50%;             /* amber */
+    --chart-5: 271 81% 56%;            /* violet */
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 234 89% 74%;
+    --primary-foreground: 222 47% 11%;
+    --primary-glow: 239 84% 67%;
+
+    --secondary: 217 33% 14%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 234 50% 18%;
+    --accent-foreground: 234 89% 84%;
+
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 222 47% 11%;
+
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 234 89% 74%;
+
+    --sidebar-background: 222 47% 9%;
+    --sidebar-foreground: 210 40% 90%;
+    --sidebar-primary: 234 89% 74%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 217 33% 14%;
+    --sidebar-accent-foreground: 234 89% 84%;
+    --sidebar-border: 217 33% 18%;
+    --sidebar-ring: 234 89% 74%;
+
+    --chart-1: 234 89% 74%;
+    --chart-2: 199 89% 60%;
+    --chart-3: 142 71% 55%;
+    --chart-4: 38 92% 60%;
+    --chart-5: 271 81% 70%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Monospace utility for catalog #s, coordinates, IDs */
+  .font-mono-data {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-variant-ligatures: none;
+  }
+}
+
+@layer utilities {
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.5) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.5) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .text-success { color: hsl(var(--success)); }
+  .text-warning { color: hsl(var(--warning)); }
+  .bg-success\/10 { background-color: hsl(var(--success) / 0.1); }
+  .bg-warning\/10 { background-color: hsl(var(--warning) / 0.1); }
+}
